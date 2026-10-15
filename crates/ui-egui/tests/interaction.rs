@@ -359,6 +359,7 @@ fn language_switch_translates_the_ribbon_and_persists() {
     }
     for (language, expected) in [
         (Language::Zh, "数据"),
+        (Language::ZhTw, "資料"),
         (Language::Ja, "データ"),
         (Language::Ko, "데이터"),
         (Language::Ru, "Данные"),
