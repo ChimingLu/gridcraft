@@ -369,11 +369,18 @@ pub enum HanOrder {
     Japanese,
     /// Simplified Chinese first: the widest Han coverage, for every other interface language.
     Chinese,
+    /// Traditional Chinese glyph shapes first (the interface is Traditional Chinese), then the
+    /// Simplified faces for anything they lack.
+    Traditional,
 }
 
 impl HanOrder {
     pub fn of(language: crate::i18n::Language) -> Self {
-        if language == crate::i18n::Language::Ja { Self::Japanese } else { Self::Chinese }
+        match language {
+            crate::i18n::Language::Ja => Self::Japanese,
+            crate::i18n::Language::ZhTw => Self::Traditional,
+            _ => Self::Chinese,
+        }
     }
 }
 
@@ -481,10 +488,13 @@ fn load_fallback(_fonts: &mut FontDefinitions, _han: HanOrder) -> Vec<String> {
 #[cfg(not(target_arch = "wasm32"))]
 fn fallback_faces(han: HanOrder) -> Vec<(&'static str, Vec<(String, u32)>)> {
     let ja = ("sys-cjk-han-ja", cjk_han_japanese());
-    let zh = ("sys-cjk-han-zh", cjk_han_simplified());
+    let zh = match han {
+        HanOrder::Traditional => ("sys-cjk-han-zh", [cjk_han_traditional(), cjk_han_simplified()].concat()),
+        HanOrder::Japanese | HanOrder::Chinese => ("sys-cjk-han-zh", cjk_han_simplified()),
+    };
     let (first, second) = match han {
         HanOrder::Japanese => (ja, zh),
-        HanOrder::Chinese => (zh, ja),
+        HanOrder::Chinese | HanOrder::Traditional => (zh, ja),
     };
     vec![
         first,
@@ -530,6 +540,22 @@ fn cjk_han_japanese() -> Vec<(String, u32)> {
     for d in LINUX_CJK_DIRS {
         v.push((format!("{d}/NotoSansCJKjp-Regular.otf"), 0));
         v.push((format!("{d}/NotoSansCJK-Regular.ttc"), 0)); // JP face
+    }
+    v
+}
+
+/// Traditional Chinese Han faces (Taiwan glyph shapes), tried ahead of the Simplified ones when the
+/// interface is Traditional Chinese. They share the `sys-cjk-han-zh` key: one Chinese face is
+/// loaded either way, so switching between the two Chinese interfaces never loads a second file.
+#[cfg(not(target_arch = "wasm32"))]
+fn cjk_han_traditional() -> Vec<(String, u32)> {
+    let win = std::env::var("WINDIR").map(|w| format!("{w}\\Fonts")).unwrap_or_else(|_| "C:\\Windows\\Fonts".into());
+    let mut v: Vec<(String, u32)> = Vec::new();
+    v.push((format!("{win}\\msjh.ttc"), 0)); // Microsoft JhengHei
+    v.push((format!("{win}\\mingliu.ttc"), 0)); // MingLiU
+    for d in LINUX_CJK_DIRS {
+        v.push((format!("{d}/NotoSansCJKtc-Regular.otf"), 0));
+        v.push((format!("{d}/NotoSansCJK-Regular.ttc"), 3)); // TC face
     }
     v
 }
@@ -822,6 +848,8 @@ mod tests {
             ["sys-cjk-han-zh", "sys-cjk-han-ja", "sys-cjk-hangul", "sys-thai", "sys-hebrew", "sys-symbols", "sys-symbols-2"]
         );
         assert_eq!(HanOrder::of(Language::Ja), HanOrder::Japanese);
+        assert_eq!(HanOrder::of(Language::ZhTw), HanOrder::Traditional);
+        assert_eq!(keys(HanOrder::Traditional), keys(HanOrder::Chinese), "Traditional only reorders the files behind the Chinese key");
         for l in [Language::En, Language::Zh, Language::Ko, Language::Ru, Language::PtBr, Language::De, Language::Cs] {
             assert_eq!(HanOrder::of(l), HanOrder::Chinese, "{l:?} shares the default order (no font rebuild)");
         }

@@ -18,6 +18,7 @@ mod pt;
 mod ru;
 mod sr;
 mod zh;
+mod zh_tw;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -26,6 +27,8 @@ pub enum Language {
     En,
     Es,
     Zh,
+    #[serde(rename = "zh-TW")]
+    ZhTw,
     Ja,
     Ko,
     Ru,
@@ -38,7 +41,8 @@ pub enum Language {
 }
 
 impl Language {
-    pub const ALL: [Self; 11] = [Self::En, Self::Es, Self::Zh, Self::Ja, Self::Ko, Self::Ru, Self::PtBr, Self::De, Self::Cs, Self::Fr, Self::Sr];
+    pub const ALL: [Self; 12] =
+        [Self::En, Self::Es, Self::Zh, Self::ZhTw, Self::Ja, Self::Ko, Self::Ru, Self::PtBr, Self::De, Self::Cs, Self::Fr, Self::Sr];
 
     /// The language's own name, shown in the switcher.
     pub fn name(self) -> &'static str {
@@ -46,6 +50,7 @@ impl Language {
             Self::En => "English",
             Self::Es => "Español",
             Self::Zh => "简体中文",
+            Self::ZhTw => "繁體中文",
             Self::Ja => "日本語",
             Self::Ko => "한국어",
             Self::Ru => "Русский",
@@ -63,6 +68,7 @@ impl Language {
             Self::En => "en",
             Self::Es => "es",
             Self::Zh => "zh",
+            Self::ZhTw => "zh-TW",
             Self::Ja => "ja",
             Self::Ko => "ko",
             Self::Ru => "ru",
@@ -79,7 +85,17 @@ impl Language {
     }
 
     fn from_tag(tag: &str) -> Option<Self> {
-        match tag.trim().split(['-', '_']).next()?.to_ascii_lowercase().as_str() {
+        let mut parts = tag.trim().split(['-', '_', '.', '@']);
+        let primary = parts.next()?.to_ascii_lowercase();
+        if primary == "zh" {
+            // Chinese picks its script from the rest of the tag: an explicit script wins (zh-Hant-CN
+            // is Traditional, zh-Hans-TW Simplified), else the region (Taiwan, Hong Kong, Macau).
+            let rest: Vec<String> = parts.map(str::to_ascii_lowercase).collect();
+            let traditional =
+                if rest.iter().any(|p| p == "hans") { false } else { rest.iter().any(|p| matches!(p.as_str(), "hant" | "tw" | "hk" | "mo")) };
+            return Some(if traditional { Self::ZhTw } else { Self::Zh });
+        }
+        match primary.as_str() {
             "en" => Some(Self::En),
             "es" => Some(Self::Es),
             "zh" => Some(Self::Zh),
@@ -122,6 +138,7 @@ impl Language {
             Self::Es => es::translate(text),
             Self::Ja => JAPANESE.iter().find(|(english, _)| *english == text).map(|(_, translated)| *translated),
             Self::Zh => zh::translate(text),
+            Self::ZhTw => zh_tw::translate(text),
             Self::Ko => ko::translate(text),
             Self::Ru => ru::translate(text),
             Self::PtBr => pt::translate(text),
@@ -603,6 +620,7 @@ mod tests {
         }
         for (english, _) in JAPANESE {
             assert!(zh::translate(english).is_some_and(|text| !text.is_empty()), "missing Simplified Chinese: {english}");
+            assert!(zh_tw::translate(english).is_some_and(|text| !text.is_empty()), "missing Traditional Chinese: {english}");
             assert!(ko::translate(english).is_some_and(|text| !text.is_empty()), "missing Korean: {english}");
             assert!(ru::translate(english).is_some_and(|text| !text.is_empty()), "missing Russian: {english}");
             assert!(pt::translate(english).is_some_and(|text| !text.is_empty()), "missing Portuguese: {english}");
@@ -614,6 +632,11 @@ mod tests {
         }
         assert_eq!(Language::Ja.tr("Data"), "データ");
         assert_eq!(Language::Zh.tr("Data"), "数据");
+        assert_eq!(Language::ZhTw.tr("Data"), "資料");
+        // Taiwan's Excel calls a row 列 and a column 欄, the reverse of the mainland's 行/列.
+        assert_eq!(Language::ZhTw.tr("Insert Sheet Rows"), "插入工作表列");
+        assert_eq!(Language::ZhTw.tr("Insert Sheet Columns"), "插入工作表欄");
+        assert_eq!(Language::ZhTw.tr("Sheet1!A1"), "Sheet1!A1");
         assert_eq!(Language::Ko.tr("Data"), "데이터");
         assert_eq!(Language::Ru.tr("Data"), "Данные");
         assert_eq!(Language::PtBr.tr("Data"), "Dados");
@@ -668,6 +691,16 @@ mod tests {
         assert_eq!(Language::from_tag("en_US"), Some(Language::En));
         assert_eq!(Language::from_tag("es_MX"), Some(Language::Es));
         assert_eq!(Language::from_tag("zh-Hans-CN"), Some(Language::Zh));
+        assert_eq!(Language::from_tag("zh-CN"), Some(Language::Zh));
+        assert_eq!(Language::from_tag("zh"), Some(Language::Zh));
+        assert_eq!(Language::from_tag("zh-TW"), Some(Language::ZhTw));
+        assert_eq!(Language::from_tag("zh_TW.UTF-8"), Some(Language::ZhTw));
+        assert_eq!(Language::from_tag("zh-Hant"), Some(Language::ZhTw));
+        assert_eq!(Language::from_tag("zh-Hant-TW"), Some(Language::ZhTw));
+        assert_eq!(Language::from_tag("zh-HK"), Some(Language::ZhTw));
+        assert_eq!(Language::from_tag("zh-Hans-TW"), Some(Language::Zh));
+        assert_eq!(Language::parse("zh-TW"), Some(Language::ZhTw));
+        assert_eq!(Language::parse("zh-tw"), Some(Language::ZhTw));
         assert_eq!(Language::from_tag("ko-KR"), Some(Language::Ko));
         assert_eq!(Language::from_tag("RU_ru"), Some(Language::Ru));
         assert_eq!(Language::from_tag("de-DE"), Some(Language::De));
