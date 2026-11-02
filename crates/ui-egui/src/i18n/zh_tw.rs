@@ -1169,6 +1169,16 @@ pub(super) fn translate(text: &str) -> Option<&'static str> {
         "Protect workbook for: Structure (sheets can't be added, moved, renamed, hidden or deleted)." => {
             "保護活頁簿的：結構 (無法新增、移動、重新命名、隱藏或刪除工作表)。"
         }
+        "Macros…" => "巨集…",
+        "More Functions" => "其他函數",
+        "New Macro" => "新增巨集",
+        "Recently Used" => "最近用過的函數",
+        "Record Macro" => "錄製巨集",
+        "Recording" => "錄製中",
+        "Run\nMacro" => "執行\n巨集",
+        "Show" => "顯示",
+        "Stop Recording" => "停止錄製",
+        "Use Relative References" => "以相對位置錄製",
         _ => return None,
     })
 }
