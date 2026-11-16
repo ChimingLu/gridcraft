@@ -1210,6 +1210,11 @@ pub(super) fn translate(text: &str) -> Option<&'static str> {
         "Slider" => "捲軸",
         "Spin Button" => "微調按鈕",
         "Trace Error" => "追蹤錯誤",
+        "Decorative Text" => "裝飾文字",
+        "Diagram" => "圖解",
+        "Maximize" => "最大化",
+        "Minimize" => "最小化",
+        "Restore Down" => "向下還原",
         _ => return None,
     })
 }
